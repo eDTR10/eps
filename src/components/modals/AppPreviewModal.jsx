@@ -391,7 +391,7 @@ export default function AppPreviewModal({ isOpen, onClose, fiscalYear, onUpdated
               {/* Header Banner matching image_db4b3df3.png */}
               <div className="app-sheet-header">
                 <div className="app-sheet-banner-wrap">
-                  <img src="/images/DICT-Logo.png" alt="DICT Logo" className="app-sheet-logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                  <img src={`${import.meta.env.BASE_URL}images/DICT-Logo.png`} alt="DICT Logo" className="app-sheet-logo" onError={(e) => { e.target.style.display = 'none'; }} />
                   <div className="app-sheet-center-text">
                     <h4>Republic of the Philippines</h4>
                     <h3>DEPARTMENT OF INFORMATION AND COMMUNICATIONS TECHNOLOGY</h3>

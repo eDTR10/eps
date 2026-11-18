@@ -243,7 +243,7 @@ export default function Dashboard() {
 
       <main className="db-main">
         <div className="db-header-banner">
-          <img src="/images/header-banner.png" alt="DICT Banner" />
+          <img src={`${import.meta.env.BASE_URL}images/header-banner.png`} alt="DICT Banner" />
         </div>
 
         <div className="db-topbar">

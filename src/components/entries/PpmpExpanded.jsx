@@ -790,7 +790,7 @@ export default function PpmpExpanded({
 
       <div className="excel-preview-sheet">
         <div className="excel-preview-banner">
-          <img src="/images/header-banner.png" alt="DICT Header Banner" />
+          <img src={`${import.meta.env.BASE_URL}images/header-banner.png`} alt="DICT Header Banner" />
         </div>
         <h2>PROJECT PROCUREMENT MANAGEMENT PLAN (PPMP) NO. {record.ppmp_no || 'N/A'}</h2>
         <div className="excel-preview-checks">

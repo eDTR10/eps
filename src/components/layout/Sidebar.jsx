@@ -15,7 +15,7 @@ export default function Sidebar({ onNewRequest, hasPendingApprovals = false }) {
         {/* Brand / Logo */}
         <div className="db-brand">
           <img
-            src="/images/DICT-Logo.png"
+            src={`${import.meta.env.BASE_URL}images/DICT-Logo.png`}
             alt="DICT Logo"
             className="db-sidebar-logo-img"
           />

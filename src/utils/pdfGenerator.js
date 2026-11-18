@@ -10,7 +10,7 @@ import {
 // ---------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------
-const BANNER_URL = '/images/header-banner.png';
+const BANNER_URL = `${import.meta.env.BASE_URL}images/header-banner.png`;
 const MARGIN = 10;
 
 const parseBudget = (raw) => parseFloat(String(raw ?? '').replace(/[^0-9.]/g, '')) || 0;

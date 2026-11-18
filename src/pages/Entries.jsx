@@ -297,7 +297,7 @@ export default function Entries() {
 
       <main className="db-main">
         <div className="db-header-banner">
-          <img src="/images/header-banner.png" alt="DICT Header Banner" />
+          <img src={`${import.meta.env.BASE_URL}images/header-banner.png`} alt="DICT Header Banner" />
         </div>
 
         <header className="db-topbar">

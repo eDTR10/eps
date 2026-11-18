@@ -20,7 +20,7 @@ import { appSectionOf, APP_SECTION_TITLES } from './pdfGenerator.js';
 export const EXPORT_ROLES = ['SUP'];
 
 const AGENCY_NAME = 'Department of Information and Communications Technology';
-const BANNER_URL = '/images/header-banner.png';
+const BANNER_URL = `${import.meta.env.BASE_URL}images/header-banner.png`;
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 // ---------------------------------------------------------------
