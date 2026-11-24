@@ -251,6 +251,7 @@ function flowToForm(flow) {
       offices: Object.fromEntries(Object.entries(flow.ppmp.HEAD.offices).map(([k, v]) => [k, stageForm(v)]))
     },
     TOD: stageForm(flow.ppmp.TOD),
+    FA: stageForm(flow.ppmp.FA),
     BO: stageForm(flow.ppmp.BO),
     ppmpRD: { notify: toText(flow.ppmp.RD?.notify) },
     app: { SUP: stageForm(flow.app.SUP), ARD: stageForm(flow.app.ARD), RD: stageForm(flow.app.RD) },
@@ -262,7 +263,7 @@ function flowToForm(flow) {
 
 function formToFlow(f) {
   return {
-    ppmp: { HEAD: { default: f.HEAD.default, offices: f.HEAD.offices }, TOD: f.TOD, BO: f.BO, RD: { notify: f.ppmpRD.notify } },
+    ppmp: { HEAD: { default: f.HEAD.default, offices: f.HEAD.offices }, TOD: f.TOD, FA: f.FA, BO: f.BO, RD: { notify: f.ppmpRD.notify } },
     app: f.app,
     completed: { ppmp: { notify: f.completedPpmp }, app: { notify: f.completedApp } },
     notifyRequester: f.notifyRequester
@@ -302,10 +303,11 @@ function coverageChecks(accounts, form) {
   const configured = new Set(Object.keys(form.HEAD.offices).map(norm));
   const checks = [
     { ok: has('tod'), text: 'An active Technical Operations Division account exists' },
+    { ok: has('admin_finance'), text: 'An active Admin/Finance account exists for GASS PPMPs' },
     { ok: has('bo'), text: 'An active Budget Officer account exists' },
     { ok: has('rd'), text: 'An active Regional Director account exists (final PPMP approval and APP)' },
     { ok: has('ard'), text: 'An active Assistant Regional Director account exists (APP)' },
-    { ok: has('supply'), text: 'An active Supply account exists (submits the APP)' },
+    { ok: has('supply'), text: 'An active Supply Officer account exists (submits the APP)' },
     { ok: noHead.length === 0, text: noHead.length ? `No active Unit Head for: ${noHead.join('; ')}` : 'Every office with requesters has an active Unit Head' }
   ];
   const unlisted = requesterOffices.filter((o) => !configured.has(norm(o)));
@@ -392,8 +394,8 @@ function FlowTab({ accounts, meta, flash }) {
       <div className="adm-card">
         <h3>PPMP approval route</h3>
         <p className="adm-hint">
-          Order: Unit Head → Technical Operations Division → Budget Officer → Regional Director.
-          The first three sign in DTMS (the signer email must be an <b>active DTMS user</b>); the Regional Director approves in this system.
+          Order: Unit Head → Technical Operations Division (other offices) or Finance Admin (GASS) → Budget Officer → Regional Director.
+          The first three sign in DTMS (each signer email must be an <b>active DTMS user</b>); the Regional Director approves in this system.
           Notification emails are told when a PPMP is waiting at that step.
         </p>
         <StageFields
@@ -416,7 +418,8 @@ function FlowTab({ accounts, meta, flash }) {
           <datalist id="adm-flow-offices">{officeOptions.map((o) => <option key={o} value={o} />)}</datalist>
           <button type="button" className="adm-btn" onClick={addOffice}>Add office</button>
         </div>
-        <StageFields title="Technical Operations Division" value={form.TOD} onChange={(v) => setAt(['TOD'], v)} />
+        <StageFields title="Technical Operations Division (other offices)" value={form.TOD} onChange={(v) => setAt(['TOD'], v)} />
+        <StageFields title="Finance Admin (GASS)" value={form.FA} onChange={(v) => setAt(['FA'], v)} />
         <StageFields title="Budget Officer" value={form.BO} onChange={(v) => setAt(['BO'], v)} />
         <StageFields
           title="Regional Director (approves in the system)"
@@ -428,8 +431,8 @@ function FlowTab({ accounts, meta, flash }) {
 
       <div className="adm-card">
         <h3>APP approval route</h3>
-        <p className="adm-hint">Order: Supply → Assistant Regional Director → Regional Director. Every step signs in DTMS.</p>
-        <StageFields title="Supply" value={form.app.SUP} onChange={(v) => setAt(['app', 'SUP'], v)} />
+        <p className="adm-hint">Order: Supply Officer → Assistant Regional Director → Regional Director. Every step signs in DTMS.</p>
+        <StageFields title="Supply Officer" value={form.app.SUP} onChange={(v) => setAt(['app', 'SUP'], v)} />
         <StageFields title="Assistant Regional Director" value={form.app.ARD} onChange={(v) => setAt(['app', 'ARD'], v)} />
         <StageFields title="Regional Director" value={form.app.RD} onChange={(v) => setAt(['app', 'RD'], v)} />
       </div>
@@ -438,7 +441,7 @@ function FlowTab({ accounts, meta, flash }) {
         <h3>Returned and approved notifications</h3>
         <label className="adm-check">
           <input type="checkbox" checked={form.notifyRequester} onChange={(e) => setAt(['notifyRequester'], e.target.checked)} />
-          <span>Email the requesting office (PPMP) or Supply (APP) when a document is returned or approved</span>
+          <span>Email the requesting office/unit (PPMP) or Supply Officer (APP) when a document is returned or approved</span>
         </label>
         <div className="adm-grid">
           <label>

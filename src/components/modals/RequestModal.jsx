@@ -19,7 +19,8 @@ import {
   formatApprovalDate,
   formatApprovalDateTime,
   getApprovalStep,
-  APPROVAL_CHAIN,
+  getPpmpApprovalStage,
+  getEffectiveApprovalChain,
   getItemsMissingDocuments,
   getItemsBudgetModeMismatch,
   buildMissingDocsMessage,
@@ -751,7 +752,7 @@ export default function RequestModal({ isOpen, onClose, recordId = null, onSaved
       setReviewRemarksError(true);
       return;
     }
-    if (action === 'approve' && ['TOD', 'BO'].includes(user?.stage) && currentRecord.dtms_track) {
+    if (action === 'approve' && ['TOD', 'FA', 'BO'].includes(user?.stage) && currentRecord.dtms_track) {
       setStageSubmitting(true);
       try {
         const result = await submitPpmpStageToDtms(currentRecord.id, user, remarks);
@@ -1043,7 +1044,7 @@ export default function RequestModal({ isOpen, onClose, recordId = null, onSaved
               display: 'inline-block'
             }} />
             <strong>Currently with:</strong>
-            <span>{getApprovalStep(currentRecord.currentApproverRole)?.label || currentRecord.currentApproverRole}</span>
+            <span>{getApprovalStep(currentRecord.currentApproverRole, currentRecord)?.label || currentRecord.currentApproverRole}</span>
           </div>
         )}
 
@@ -1077,7 +1078,7 @@ export default function RequestModal({ isOpen, onClose, recordId = null, onSaved
             <ul className="review-list">
               {currentRecord.remarksHistory.map((h, idx) => {
                 const action = h.action || 'approved';
-                const stepInfo = getApprovalStep(h.stage);
+                const stepInfo = getApprovalStep(h.stage, currentRecord);
                 const stageLabel = stepInfo ? stepInfo.label : (h.stage || 'Approver');
                 return (
                   <li key={idx} className="review-item">
@@ -1564,9 +1565,7 @@ export default function RequestModal({ isOpen, onClose, recordId = null, onSaved
               </div>
               <h3>Submit PPMP No. {currentRecord?.ppmp_no || headerData.ppmp_no} for approval?</h3>
               <p>
-                {user?.stage === 'HEAD'
-                  ? 'It will be sent to DTMS for your Department Head’s digital signature. After signing, it returns to the Procurement System for TOD review. '
-                  : 'It will be sent to DTMS for your Department Head’s digital signature. After signing, it returns to the Procurement System for TOD review. '}
+                It will be sent to DTMS for your Department Head’s digital signature. After signing, it returns to the Procurement System for Finance Admin review for GASS PPMPs, or TOD review for other offices.
                 While it is under review it can no longer be edited or get new items.
               </p>
               <div className="logout-actions">
@@ -1594,10 +1593,12 @@ export default function RequestModal({ isOpen, onClose, recordId = null, onSaved
               <h3>Review PPMP No. {currentRecord.ppmp_no || 'N/A'}</h3>
               <p>
                 {(() => {
-                  const stepIdx = APPROVAL_CHAIN.findIndex(s => s.role === currentRecord.currentApproverRole);
-                  const isLastStep = stepIdx === APPROVAL_CHAIN.length - 1;
-                  const nextStep = !isLastStep && stepIdx > -1 ? APPROVAL_CHAIN[stepIdx + 1] : null;
-                  const sendsForSignature = ['TOD', 'BO'].includes(currentRecord.currentApproverRole) && !!currentRecord.dtms_track;
+                  const chain = getEffectiveApprovalChain(currentRecord);
+                  const activeStage = getPpmpApprovalStage(currentRecord);
+                  const stepIdx = chain.findIndex(s => s.role === activeStage);
+                  const isLastStep = stepIdx === chain.length - 1;
+                  const nextStep = !isLastStep && stepIdx > -1 ? chain[stepIdx + 1] : null;
+                  const sendsForSignature = ['TOD', 'FA', 'BO'].includes(activeStage) && !!currentRecord.dtms_track;
                   return (sendsForSignature
                     ? `Approve to send it to DTMS for your digital signature. After signing, it returns to the Procurement System for ${nextStep?.label || 'the next stage'}. `
                     : nextStep
@@ -1682,7 +1683,7 @@ export default function RequestModal({ isOpen, onClose, recordId = null, onSaved
                 >
                   {stageSubmitting
                     ? 'Sending to DTMS…'
-                    : ['TOD', 'BO'].includes(currentRecord.currentApproverRole) && currentRecord.dtms_track
+                    : ['TOD', 'FA', 'BO'].includes(getPpmpApprovalStage(currentRecord)) && currentRecord.dtms_track
                       ? 'Approve & Send for Signature'
                       : 'Approve'}
                 </button>

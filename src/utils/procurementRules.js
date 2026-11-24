@@ -10,6 +10,17 @@ export const APPROVAL_CHAIN = [
   { role: 'BO',   label: 'Budget Officer' },
   { role: 'RD',   label: 'Regional Director' }
 ];
+export const GASS_OFFICE = 'General Administration and Support Services';
+
+const normalizeOffice = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+export function isGassPpmp(record) {
+  return normalizeOffice(record?.end_user) === normalizeOffice(GASS_OFFICE);
+}
+
+export function getPpmpApprovalStage(record, stage = record?.currentApproverRole) {
+  return isGassPpmp(record) && stage === 'TOD' ? 'FA' : stage;
+}
 
 // A Unit Head who submits for their own unit auto-endorses, so HEAD never reviews that round
 // (see submitPpmpForApproval). Detected from the 'submitted' remark logged for the current round.
@@ -21,11 +32,15 @@ export function isHeadStepSkipped(record) {
 
 // The approval steps that actually apply to this record (HEAD removed when the Unit Head submitted).
 export function getEffectiveApprovalChain(record) {
-  return isHeadStepSkipped(record) ? APPROVAL_CHAIN.filter(step => step.role !== 'HEAD') : APPROVAL_CHAIN;
+  const chain = isGassPpmp(record)
+    ? APPROVAL_CHAIN.map((step) => step.role === 'TOD' ? { role: 'FA', label: 'Finance Admin' } : step)
+    : APPROVAL_CHAIN;
+  return isHeadStepSkipped(record) ? chain.filter(step => step.role !== 'HEAD') : chain;
 }
 
-export function getApprovalStep(stage) {
-  return APPROVAL_CHAIN.find(step => step.role === stage) || null;
+export function getApprovalStep(stage, record) {
+  const activeStage = getPpmpApprovalStage(record, stage);
+  return getEffectiveApprovalChain(record).find(step => step.role === activeStage) || null;
 }
 
 export const PROJECT_TYPE_DOC_LABELS = {
@@ -662,7 +677,15 @@ export function canSessionActOnRecord(record, session) {
     !record.dtms_signing_complete ||
     record.dtms_signed_file_track !== record.dtms_track
   )) return false;
-  if (record.currentApproverRole !== session.stage) return false;
+  return canSessionReviewStage(record, session);
+}
+
+export function canSessionReviewStage(record, session) {
+  if (!session || !session.canApprove || !record) return false;
+  if (session.type === 'admin_finance' && !isGassPpmp(record)) return false;
+  if (session.stage === 'FA' && !isGassPpmp(record)) return false;
+  if (session.stage === 'TOD' && isGassPpmp(record)) return false;
+  if (getPpmpApprovalStage(record) !== session.stage) return false;
   if (session.stage === 'HEAD') return sameOffice(record.end_user, session.headOf);
   return true;
 }
@@ -831,9 +854,11 @@ export function performPpmpReviewAction(recordId, action, remarksText, session) 
     message = `PPMP No. ${record.ppmp_no} rejected and returned to the requesting office.`;
   } else {
     // Approve
-    const currentIdx = APPROVAL_CHAIN.findIndex(step => step.role === record.currentApproverRole);
-    if (currentIdx > -1 && currentIdx < APPROVAL_CHAIN.length - 1) {
-      const next = APPROVAL_CHAIN[currentIdx + 1];
+    const approvalChain = getEffectiveApprovalChain(record);
+    const currentStage = getPpmpApprovalStage(record);
+    const currentIdx = approvalChain.findIndex(step => step.role === currentStage);
+    if (currentIdx > -1 && currentIdx < approvalChain.length - 1) {
+      const next = approvalChain[currentIdx + 1];
       record.currentApproverRole = next.role;
       message = `PPMP No. ${record.ppmp_no} approved and forwarded to ${next.label}.`;
     } else {

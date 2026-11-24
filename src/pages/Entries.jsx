@@ -16,7 +16,8 @@ import {
   getItemsBudgetModeMismatch,
   buildMissingDocsMessage,
   buildBudgetMismatchMessage,
-  isLatestApprovedCarryoverSource
+  isLatestApprovedCarryoverSource,
+  getPpmpApprovalStage
 } from '../utils/procurementRules.js';
 import {
   readRecords,
@@ -44,7 +45,6 @@ import { syncAllWithDtms, submitPpmpViaDtms } from '../utils/dtmsClient.js';
 import { refreshRemoteData } from '../utils/adminApi.js';
 import "../assets/styles/ppmp-inline-edit.css";
 
-const STAGE_LABELS = { HEAD: 'Unit Head', TOD: 'TOD', BO: 'Budget Officer', RD: 'Regional Director' };
 const APP_ROLES = ['SUP', 'ARD', 'RD'];
 
 const statusClass = (status) =>
@@ -68,7 +68,8 @@ function StatusPill({ record, user }) {
 
   let label = status;
   if (status === 'For Approval' && user?.canTrackApprovals) {
-    const where = STAGE_LABELS[record.currentApproverRole];
+    const activeStage = getPpmpApprovalStage(record);
+    const where = { HEAD: 'Unit Head', TOD: 'TOD', FA: 'Finance Admin', BO: 'Budget Officer', RD: 'Regional Director' }[activeStage];
     if (where) label = `For Approval · ${where}`;
   }
   return <span className={`db-status-pill ${statusClass(status)}`} title={submittedTitle}>{label}</span>;
@@ -148,7 +149,7 @@ export default function Entries() {
 
   const loadData = useCallback(() => {
     setRecords(getVisibleRecords(readRecords(), user));
-    setApps(getAllAppRecords());
+    setApps(user?.type === 'admin_finance' ? [] : getAllAppRecords());
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -240,7 +241,7 @@ export default function Entries() {
       record,
       title: `Submit PPMP No. ${record.ppmp_no || 'N/A'} for approval?`,
       text: (user?.stage === 'HEAD'
-        ? 'Its status will change from Draft to For Approval and it goes straight to the TOD. '
+        ? `Its status will change from Draft to For Approval and it goes straight to ${getPpmpApprovalStage(record, 'TOD') === 'FA' ? 'Finance Admin' : 'TOD'}. `
         : 'Its status will change from Draft to For Approval and it goes to your Unit Head. ') +
         'While it is under review it can no longer be edited or get new items.',
       confirmLabel: 'Submit'
@@ -336,9 +337,11 @@ export default function Entries() {
             <button type="button" className={`db-tab-btn ${tab === 'ppmp' ? 'active' : ''}`} onClick={() => setTab('ppmp')}>
               PPMP Requests
             </button>
-            <button type="button" className={`db-tab-btn ${tab === 'app' ? 'active' : ''}`} onClick={() => setTab('app')}>
-              Annual Procurement Plans (APP)
-            </button>
+            {user?.type !== 'admin_finance' && (
+              <button type="button" className={`db-tab-btn ${tab === 'app' ? 'active' : ''}`} onClick={() => setTab('app')}>
+                Annual Procurement Plans (APP)
+              </button>
+            )}
           </div>
 
           {tab === 'ppmp' && (
@@ -492,7 +495,7 @@ export default function Entries() {
             </>
           )}
 
-          {tab === 'app' && (
+          {tab === 'app' && user?.type !== 'admin_finance' && (
             <div className="db-entries-table-wrap">
               <table className="db-entries-table">
                 <thead>

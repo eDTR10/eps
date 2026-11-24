@@ -1,5 +1,5 @@
 // DTMS integration for the PPMP app. Talks to server/dtms-proxy.js, never to DTMS directly.
-import { APPROVAL_CHAIN, getPpmpStatus, recordApprovedPpmpNumber, getPpmpSubmitError, submitPpmpForApproval, getAllAppRecords, getAppRecord, saveAppRecord } from './procurementRules.js';
+import { APPROVAL_CHAIN, getEffectiveApprovalChain, getPpmpApprovalStage, getPpmpStatus, canSessionActOnRecord, recordApprovedPpmpNumber, getPpmpSubmitError, submitPpmpForApproval, getAllAppRecords, getAppRecord, saveAppRecord } from './procurementRules.js';
 import { buildPPMP_PDF_Blob, previewAPP_PDF } from './pdfGenerator.js';
 import FileStore from './fileStore.js';
 import { getCachedFlow } from './adminApi.js';
@@ -19,7 +19,7 @@ export const DTMS_ROLE = {
 };
 
 // PPMP chain. HEAD depends on the office (record.end_user); the rest are fixed.
-// The Department Head, TOD, and Budget Officer sign in DTMS. RD approves locally afterward.
+// TOD or Finance Admin (for GASS), and Budget Officer sign in DTMS. RD approves locally afterward.
 export const PPMP_SIGNERS = {
   HEAD: {
     'ICT Literacy Competency and Development bureau': '20210022244@my.xu.edu.ph',
@@ -27,17 +27,18 @@ export const PPMP_SIGNERS = {
     DEFAULT: '20210022244@my.xu.edu.ph'
   }, // office -> email
   TOD: '20210022244@my.xu.edu.ph',
+  FA: '20210022244@my.xu.edu.ph',
   BO: '20210022244@my.xu.edu.ph'
 };
 
-const PPMP_DTMS_STAGES = APPROVAL_CHAIN.filter((step) => step.role !== 'RD');
+const PPMP_DTMS_STAGES = ['HEAD', 'TOD', 'FA', 'BO'];
 
 // APP chain. Same one-stage-at-a-time handoff as PPMP, with every stage signing in DTMS:
 //   Supply submits -> DTMS signature (SUP) -> signed PDF returns -> ARD reviews in the system
 //   -> DTMS signature (ARD) -> signed PDF returns -> RD reviews in the system
 //   -> DTMS signature (RD) -> the RD-signed PDF returns and the APP becomes Final.
 export const APP_CHAIN = [
-  { role: 'SUP', label: 'Supply' },
+  { role: 'SUP', label: 'Supply Officer' },
   { role: 'ARD', label: 'Assistant Regional Director' },
   { role: 'RD', label: 'Regional Director' }
 ];
@@ -78,7 +79,7 @@ function getPpmpSignerEmail(record, stage) {
 }
 
 export function buildSignatories(record, stage = 'HEAD') {
-  if (!PPMP_DTMS_STAGES.some((step) => step.role === stage)) {
+  if (!PPMP_DTMS_STAGES.includes(stage)) {
     throw new Error(`PPMP stage "${stage}" does not sign in DTMS.`);
   }
   const email = getPpmpSignerEmail(record, stage);
@@ -174,8 +175,8 @@ export async function submitPpmpViaDtms(recordId, session) {
 
 const stageSubmitsInFlight = new Set();
 export async function submitPpmpStageToDtms(recordId, session, remarks = '') {
-  if (!session?.canApprove || !['TOD', 'BO'].includes(session.stage)) {
-    return { success: false, error: 'Only the current TOD or Budget Officer can send this PPMP for a DTMS signature.' };
+  if (!session?.canApprove || !['TOD', 'FA', 'BO'].includes(session.stage)) {
+    return { success: false, error: 'Only the current TOD, Finance Admin, or Budget Officer can send this PPMP for a DTMS signature.' };
   }
   if (stageSubmitsInFlight.has(recordId)) return { success: false, error: 'This PPMP is already being sent to DTMS.' };
   stageSubmitsInFlight.add(recordId);
@@ -183,10 +184,7 @@ export async function submitPpmpStageToDtms(recordId, session, remarks = '') {
     const records = JSON.parse(localStorage.getItem('procurement_records')) || [];
     const record = records.find((item) => item.id === recordId);
     if (!record) return { success: false, error: 'Record not found.' };
-    if (getPpmpStatus(record) !== 'For Approval' ||
-      record.currentApproverRole !== session.stage ||
-      !record.dtms_signing_complete ||
-      record.dtms_signed_file_track !== record.dtms_track) {
+    if (!canSessionActOnRecord(record, session)) {
       return { success: false, error: 'This PPMP is not ready for your DTMS signature step.' };
     }
 
@@ -347,13 +345,14 @@ export function applyDtmsStatus(record, dtms) {
     const stages = record.dtms_stage_roles || APPROVAL_CHAIN.map((step) => step.role);
     const done = Math.min(dtms.progress?.signed ?? 0, stages.length - 1);
     record.status = 'For Approval';
-    record.currentApproverRole = stages[done];
+    record.currentApproverRole = getPpmpApprovalStage(record, stages[done]);
   } else if (dtms.status === 'completed') {
     const stages = record.dtms_stage_roles || APPROVAL_CHAIN.map((step) => step.role);
-    const completedStage = record.dtms_signing_stage || stages[stages.length - 1];
-    const completedIdx = PPMP_DTMS_STAGES.findIndex((step) => step.role === completedStage);
+    const completedStage = getPpmpApprovalStage(record, record.dtms_signing_stage || stages[stages.length - 1]);
     const legacyFullChain = !record.dtms_signing_stage && stages.includes('RD');
-    const nextStage = legacyFullChain ? null : PPMP_DTMS_STAGES[completedIdx + 1]?.role || 'RD';
+    const approvalChain = getEffectiveApprovalChain(record);
+    const completedIdx = approvalChain.findIndex((step) => step.role === completedStage);
+    const nextStage = legacyFullChain ? null : approvalChain[completedIdx + 1]?.role || 'RD';
     const signer = (dtms.signatories || []).find((item) => item.order === 0);
     const submission = record.dtms_submissions?.find((item) => item.tracknumber === record.dtms_track);
     if (submission) {

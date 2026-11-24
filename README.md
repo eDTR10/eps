@@ -33,8 +33,8 @@ A centralized web application developed for the **Department of Information and 
 - **Fiscal Year Rollover**: The current fiscal year and the next 10 years are available when creating a PPMP. When an APP is finalized and marked Complete by the Regional Director, that year is closed against new requests, and subsequent requests default to the next open year.
 
 ### 3. Multi-Stage Approval Workflows
-- **PPMP Chain**: `Requesting Unit / Unit Head` -> `TOD (Technical Operations Division)` -> `Budget Officer` -> `RD (Regional Director)`.
-  - *Unit Head Submissions*: Automatically bypass the HEAD stage and endorse directly to TOD with an automated remark log.
+- **PPMP Chain**: `Requesting Unit / Unit Head` -> `TOD` (other offices) or `Finance Admin` (GASS) -> `Budget Officer` -> `RD (Regional Director)`.
+  - *Unit Head Submissions*: Automatically bypass the HEAD stage and endorse directly to the applicable second-stage approver with an automated remark log.
 - **APP Master Workflow**:
   - Compiled and monitored by the **Supply Account (`SUP`)**.
   - Endorsed by the **Assistant Regional Director (`ARD`)**.
@@ -128,7 +128,7 @@ The **Test DTMS Send** button appears while viewing a PPMP or APP. It uploads a 
 
 For DTMS integration, set the DTMS base URL, API key, registered DTMS origin, and the web app origin (`http://localhost:3000`) in `server/.env`. Add other exact browser origins to the optional comma-separated `APP_ORIGINS` value. Keep the API key only in `server/.env`. DTMS is optional for local database use; DTMS endpoints return an error until configured.
 
-PPMPs use a one-stage-at-a-time handoff: the requester submits to DTMS for the Department Head's signature; after the signed PDF returns to the Procurement System, TOD reviews it in the system and sends it to DTMS for TOD's signature; Budget Officer then reviews and sends it for their DTMS signature; the final signed copy returns to the system for the RD's local approval. APPs follow the same one-stage-at-a-time handoff: Supply submits to DTMS for Supply's signature; after the signed PDF returns, the ARD reviews it in the system and sends it to DTMS for the ARD's signature; the RD then reviews the ARD-signed copy and sends it to DTMS for the RD's signature, and the APP becomes Final once the RD-signed PDF returns. The APP review dialog shows the DTMS-signed copy, and each signature is added to the APP's review history and signature block. The Entries page polls DTMS every 45 seconds and rechecks when the browser regains focus; sync failures are shown in the page notification. Signed PDFs and supporting documents are stored in MySQL and can be previewed or downloaded from the PPMP/APP views. Set each signer to the correct active DTMS account in `src/utils/dtmsClient.js` before production; the current local configuration temporarily points all steps to the same DTMS account.
+PPMPs use a one-stage-at-a-time handoff: the requester submits to DTMS for the Department Head's signature; after the signed PDF returns to the Procurement System, TOD reviews non-GASS PPMPs (Finance Admin reviews GASS PPMPs) and sends them to DTMS for that stage's signature; the Budget Officer then reviews and sends the PPMP for their DTMS signature; the final signed copy returns to the system for the RD's local approval. APPs follow the same one-stage-at-a-time handoff: Supply submits to DTMS for Supply's signature; after the signed PDF returns, the ARD reviews it in the system and sends it to DTMS for the ARD's signature; the RD then reviews the ARD-signed copy and sends it to DTMS for the RD's signature, and the APP becomes Final once the RD-signed PDF returns. The APP review dialog shows the DTMS-signed copy, and each signature is added to the APP's review history and signature block. The Entries page polls DTMS every 45 seconds and rechecks when the browser regains focus; sync failures are shown in the page notification. Signed PDFs and supporting documents are stored in MySQL and can be previewed or downloaded from the PPMP/APP views. Set each signer to the correct active DTMS account in the Admin page before production.
 
 ### Building for Production
 
@@ -160,13 +160,15 @@ All accounts use the default password: **`1`**
 | **GASS** | General Administration & Support Services | `GASS@dict.gov.ph` | Create/Edit PPMP Requests |
 | **ILCDB Head** | Unit Head (ILCDB) | `ILCDBHEAD@dict.gov.ph` | Create PPMP & Auto-Endorse to TOD |
 | **FPIAP Head** | Unit Head (FPIAP) | `FPIAPHEAD@dict.gov.ph` | Create PPMP & Auto-Endorse to TOD |
-| **GASS Head** | Unit Head (GASS) | `GASSHEAD@dict.gov.ph` | Create PPMP & Auto-Endorse to TOD |
-| **TOD** | Technical Operations Division Chief | `tod@dict.gov.ph` | Review & Endorse Stage 2 PPMP |
+| **GASS Head** | Unit Head (GASS) | `GASSHEAD@dict.gov.ph` | Create PPMP & Auto-Endorse to Finance Admin |
+| **TOD** | Technical Operations Division Chief | `tod@dict.gov.ph` | Review & Endorse non-GASS PPMPs at Stage 2 |
 | **Budget Officer** | Budget Office | `BudgetOfficer@dict.gov.ph` | Review & Certify Funds (Stage 3) |
 | **ARD** | Assistant Regional Director | `ard@dict.gov.ph` | Endorse Master APP / PPMP Review |
 | **RD** | Regional Director | `rd@dict.gov.ph` | Final PPMP & Final APP Approval |
 | **Suppliers** | Supply & Procurement Unit | `suppliers@dict.gov.ph` | Track Requests & Compile Master APP |
 | **POP Test** | Test Account | `test@dict.gov.ph` | General Request Testing |
+
+Admin/Finance accounts are created from the Admin page. They use role/stage code `FA` and office “Finance Admin”; PPMPs for the GASS office route to Finance Admin instead of TOD. Other PPMPs continue to route to TOD.
 
 ---
 

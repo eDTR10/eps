@@ -24,7 +24,7 @@ function notifyChange(kind, record, before, stages, round) {
 
 // before = { status, stage } taken just before the change.
 export const notifyPpmpChange = (record, before) =>
-  notifyChange('ppmp', record, before, ['HEAD', 'TOD', 'BO', 'RD'], Number(record?.submission_round) || 1);
+  notifyChange('ppmp', record, before, ['HEAD', 'TOD', 'FA', 'BO', 'RD'], Number(record?.submission_round) || 1);
 
 export const notifyAppChange = (record, before) =>
   notifyChange('app', record, before, ['SUP', 'ARD', 'RD'], record?.submitted_at || '');

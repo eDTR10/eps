@@ -4,6 +4,7 @@ import {
   refreshFlow, clearFlowCache, initializeRemoteData
 } from '../utils/adminApi.js';
 import { migrateLegacyFiles } from '../utils/fileStore.js';
+import { canSessionActOnRecord } from '../utils/procurementRules.js';
 
 // Accounts now live on the server (Admin page). Kept only so old imports do not break.
 export const ACCOUNTS = [];
@@ -90,17 +91,7 @@ export function AuthProvider({ children }) {
   };
 
   // Helper checking if user can act on a specific PPMP record
-  const canActOnRecord = (record) => {
-    if (!user || !user.canApprove || !record) return false;
-    if (record.status !== 'For Approval') return false;
-    if (record.dtms_track && (
-      !record.dtms_signing_complete ||
-      record.dtms_signed_file_track !== record.dtms_track
-    )) return false;
-    if (record.currentApproverRole !== user.stage) return false;
-    if (user.stage === 'HEAD') return record.end_user === user.headOf;
-    return true;
-  };
+  const canActOnRecord = (record) => canSessionActOnRecord(record, user);
 
   return (
     <AuthContext.Provider value={{

@@ -1,6 +1,7 @@
 // Helpers ported from the original dashboard-logic.js.
 // Put this next to procurementRules.js (e.g. src/utils/dashboardHelpers.js).
 // Everything here is pure: no DOM access, no localStorage writes.
+import { canSessionActOnRecord, canSessionReviewStage, getPpmpApprovalStage, isGassPpmp } from './procurementRules.js';
 
 export function readRecords() {
   try {
@@ -33,6 +34,7 @@ export const canDeleteRecord = (record, user) =>
 export function getVisibleRecords(all, user) {
   if (!user) return [];
   return all.filter((r) => {
+    if (user.type === 'admin_finance' && !isGassPpmp(r)) return false;
     const status = getPpmpStatus(r);
 
     // 1. Requesters see everything from their own office, drafts included.
@@ -48,9 +50,9 @@ export function getVisibleRecords(all, user) {
     //    Unit Heads: own office only.
     if (user.canApprove && status === 'For Approval') {
       if (user.stage === 'HEAD' && r.end_user !== user.headOf) return false;
-      if (r.currentApproverRole === user.stage) return true;
+      if (canSessionReviewStage(r, user)) return true;
       const history = Array.isArray(r.remarksHistory) ? r.remarksHistory : [];
-      if (history.some((h) => h.stage === user.stage)) return true;
+      if (history.some((h) => getPpmpApprovalStage(r, h.stage) === user.stage)) return true;
     }
 
     return false;
@@ -59,15 +61,7 @@ export function getVisibleRecords(all, user) {
 
 // True when this account is an approver AND the record is waiting at their stage.
 export function canActOnRecord(record, user) {
-  if (!user || !user.canApprove || !record) return false;
-  if (getPpmpStatus(record) !== 'For Approval') return false;
-  if (record.dtms_track && (
-    !record.dtms_signing_complete ||
-    record.dtms_signed_file_track !== record.dtms_track
-  )) return false;
-  if (record.currentApproverRole !== user.stage) return false;
-  if (user.stage === 'HEAD') return record.end_user === user.headOf;
-  return true;
+  return canSessionActOnRecord(record, user);
 }
 
 // "just now", "5 min ago", "2 hr ago", "3 days ago", or a date after a week.

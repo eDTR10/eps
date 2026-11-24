@@ -7,7 +7,8 @@ import {
   parseBudgetNumber,
   getRecordItems,
   calculateDeduplicatedBudget,
-  isPpmpDraft
+  isPpmpDraft,
+  isGassPpmp
 } from '../../utils/procurementRules';
 
 const hasDoc = (doc) => !!doc && !!(doc.fileId || doc.dataUrl);
@@ -86,7 +87,7 @@ const SIGNATORIES = [
     lines: ['Focal, ICT Literacy Competency and Development Bureau X'],
     date: true
   },
-  { label: 'Endorsed by:', name: 'EUGENE C. RAPOSALA III', lines: ['Chief, Technical Operations Division'] },
+  { stage: 'TOD', label: 'Endorsed by:', name: 'EUGENE C. RAPOSALA III', lines: ['Chief, Technical Operations Division'] },
   { label: 'Certified Funds Available:', name: 'BRYAN JOHN M. SABLAS', lines: ['Budget Officer II'] }
 ];
 
@@ -132,6 +133,11 @@ export function PpmpSheet({ record, notify = () => {}, onPreviewDoc }) {
   const isFinal = record.is_indicative === 'Final';
   const total = formatPesoExact(calculateDeduplicatedBudget(items));
   const labelSpan = showCS ? 12 : 11;
+  const signatories = isGassPpmp(record)
+    ? SIGNATORIES.map((signatory) => signatory.stage === 'TOD'
+      ? { ...signatory, name: '[Finance Admin Name]', lines: ['Finance Admin'] }
+      : signatory)
+    : SIGNATORIES;
 
   // "Column 1..n" row: the hidden Criteria (6) and Strategies (14) columns are skipped in the numbering.
   let shown = 0;
@@ -238,7 +244,7 @@ export function PpmpSheet({ record, notify = () => {}, onPreviewDoc }) {
       </div>
 
       <div className="excel-preview-signatures">
-        {SIGNATORIES.map((s) => (
+        {signatories.map((s) => (
           <div key={s.label}>
             <p>{s.label}</p>
             <span />

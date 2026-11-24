@@ -29,7 +29,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // ---------------------------------------------------------------------------
 export const ACCOUNT_TYPES = {
   requester: {
-    label: 'Requesting office', needsOffice: true, editableRole: true,
+    label: 'Requesting Office/Unit', needsOffice: true, editableRole: true,
     build: (a) => ({ role: a.role, canRequest: true, canApprove: false })
   },
   unit_head: {
@@ -39,6 +39,10 @@ export const ACCOUNT_TYPES = {
   tod: {
     label: 'Technical Operations Division', fixedRole: 'TOD', defaultOffice: 'Technical Operations Division',
     build: () => ({ role: 'TOD', canApprove: true, stage: 'TOD' })
+  },
+  admin_finance: {
+    label: 'Admin/Finance', fixedRole: 'FA', defaultOffice: 'Finance Admin',
+    build: () => ({ role: 'FA', canApprove: true, stage: 'FA' })
   },
   bo: {
     label: 'Budget Officer', fixedRole: 'BO', defaultOffice: 'Budget Office',
@@ -53,7 +57,7 @@ export const ACCOUNT_TYPES = {
     build: () => ({ role: 'RD', canApprove: true, stage: 'RD' })
   },
   supply: {
-    label: 'Supply', fixedRole: 'SUP',
+    label: 'Supply Officer', fixedRole: 'SUP',
     build: () => ({ role: 'SUP', canRequest: false, canApprove: false, canTrackApprovals: true })
   },
   admin: {
@@ -63,10 +67,10 @@ export const ACCOUNT_TYPES = {
 };
 
 const STAGE_LABELS = {
-  HEAD: 'Unit Head', TOD: 'Technical Operations Division', BO: 'Budget Officer',
-  SUP: 'Supply', ARD: 'Assistant Regional Director', RD: 'Regional Director'
+  HEAD: 'Unit Head', TOD: 'Technical Operations Division', FA: 'Finance Admin', BO: 'Budget Officer',
+  SUP: 'Supply Officer', ARD: 'Assistant Regional Director', RD: 'Regional Director'
 };
-const PPMP_STAGES = ['HEAD', 'TOD', 'BO', 'RD'];
+const PPMP_STAGES = ['HEAD', 'TOD', 'FA', 'BO', 'RD'];
 const APP_STAGES = ['SUP', 'ARD', 'RD'];
 
 function toUser(acct) {
@@ -116,6 +120,7 @@ const defaultFlow = () => ({
       }
     },
     TOD: { signer: PLACEHOLDER_SIGNER, notify: [] },
+    FA: { signer: PLACEHOLDER_SIGNER, notify: [] },
     BO: { signer: PLACEHOLDER_SIGNER, notify: [] },
     RD: { notify: [] }
   },
@@ -127,6 +132,18 @@ const defaultFlow = () => ({
   completed: { ppmp: { notify: [] }, app: { notify: [] } },
   notifyRequester: true
 });
+
+function ensureFinanceFlow() {
+  if (!store.flow) {
+    store.flow = defaultFlow();
+    return true;
+  }
+  if (!store.flow.ppmp) store.flow.ppmp = defaultFlow().ppmp;
+  if (store.flow.ppmp.FA) return false;
+  const tod = store.flow.ppmp.TOD || defaultFlow().ppmp.TOD;
+  store.flow.ppmp.FA = { ...tod, notify: [...(tod.notify || [])] };
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // Passwords and tokens
@@ -275,12 +292,13 @@ async function initStore(db) {
   const saved = rows[0] && parseJson(rows[0].state_value);
   if (saved) {
     store = saved;
+    const flowChanged = ensureFinanceFlow();
     const [accountRows] = await db.execute('SELECT * FROM accounts');
     const legacyAccounts = Array.isArray(store.accounts) ? store.accounts : [];
     store.accounts = accountRows.length ? accountRows.map(accountFromRow) : legacyAccounts;
     const seedChanged = bootstrapSeedPasswords();
     const adminChanged = bootstrapAdminPassword();
-    if (seedChanged || adminChanged || (!accountRows.length && legacyAccounts.length)) await saveStore();
+    if (flowChanged || seedChanged || adminChanged || (!accountRows.length && legacyAccounts.length)) await saveStore();
     return;
   }
 
@@ -290,6 +308,7 @@ async function initStore(db) {
     store = null;
   }
   if (store && Array.isArray(store.accounts)) {
+    ensureFinanceFlow();
     if (!store.secret) store.secret = crypto.randomBytes(32).toString('hex');
     bootstrapSeedPasswords();
     bootstrapAdminPassword();
@@ -382,6 +401,7 @@ function sanitizeFlow(input, errors) {
     ppmp: {
       HEAD: { default: parseStage(p.HEAD?.default, 'Unit Head (default)', errors, true), offices },
       TOD: parseStage(p.TOD, 'Technical Operations Division', errors, true),
+      FA: parseStage(p.FA, 'Finance Admin', errors, true),
       BO: parseStage(p.BO, 'Budget Officer', errors, true),
       RD: parseStage(p.RD, 'Regional Director (PPMP)', errors, false)
     },
@@ -448,7 +468,9 @@ function recipientsFor({ kind, event, stage, record }) {
       const hit = Object.entries(flow.ppmp.HEAD.offices).find(([name]) => norm(name) === office)?.[1];
       add((hit || flow.ppmp.HEAD.default).notify);
     } else {
-      add((kind === 'ppmp' ? flow.ppmp : flow.app)[stage]?.notify);
+      const isGassPpmp = kind === 'ppmp' && office === norm(GASS);
+      const notificationStage = isGassPpmp && stage === 'TOD' ? 'FA' : stage;
+      add((kind === 'ppmp' ? flow.ppmp : flow.app)[notificationStage]?.notify);
     }
   } else {
     if (flow.notifyRequester) {
@@ -466,7 +488,8 @@ function recipientsFor({ kind, event, stage, record }) {
 
 function buildMessage({ kind, event, stage, record, remarks }) {
   const what = kind === 'ppmp' ? `PPMP ${record.ppmp_no || ''}`.trim() : `APP FY ${record.fiscal_year || ''}`.trim();
-  const stageLabel = STAGE_LABELS[stage] || stage || '';
+  const isGassPpmp = kind === 'ppmp' && norm(record.end_user) === norm(GASS);
+  const stageLabel = isGassPpmp && stage === 'TOD' ? 'Finance Admin' : STAGE_LABELS[stage] || stage || '';
   let subject;
   let line;
   if (event === 'arrived') {
@@ -612,7 +635,7 @@ export async function createApiRouter(db) {
     if (t.editableRole) {
       role = String(body.role ?? existing?.role ?? '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
       if (!role) errors.push('Enter a role code (letters and numbers, e.g. ILCDB).');
-      if (['ADMIN', 'SUP', 'ARD', 'RD', 'TOD', 'BO', 'HEAD'].includes(role)) errors.push(`"${role}" is reserved for a fixed role.`);
+      if (['ADMIN', 'SUP', 'ARD', 'RD', 'TOD', 'FA', 'BO', 'HEAD'].includes(role)) errors.push(`"${role}" is reserved for a fixed role.`);
     }
     return errors.length ? null : { type, email, roleName, office: office || t.defaultOffice || '', role };
   }

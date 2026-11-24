@@ -190,7 +190,7 @@ export default function AppPreviewModal({ isOpen, onClose, fiscalYear, onUpdated
       return;
     }
 
-    // ARD / RD approve -> the signed copy goes to DTMS for their own signature (same as TOD / Budget Officer on a PPMP).
+    // ARD / RD approve -> the signed copy goes to DTMS for their own signature (same as TOD / Finance Admin / Budget Officer on a PPMP).
     if (action === 'approve' && ['ARD', 'RD'].includes(user.role) && current.dtms_track) {
       setStageSubmitting(true);
       try {
