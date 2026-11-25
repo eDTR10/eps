@@ -3,7 +3,6 @@
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)](https://developer.mozilla.org/)
-=======
 
 A centralized web application developed for the **Department of Information and Communications Technology (DICT)** to prepare, manage, approve, and consolidate **Project Procurement Management Plans (PPMP)** and compile **Annual Procurement Plans (APP)** in compliance with Philippine procurement laws (**Republic Act No. 12009 — New Government Procurement Act**).
 
@@ -86,38 +85,50 @@ Ensure you have **Node.js (v20.19.0 or higher)** and **npm** installed on your s
 ```bash
 node -v
 npm -v
-<<<<<<< HEAD
 ```
+
+For local development on Windows, use **XAMPP** to run MySQL. Start the MySQL service from the XAMPP Control Panel; Apache is not required for this app. Open phpMyAdmin at `http://localhost/phpmyadmin` and create the database you plan to use (the example configuration uses `dict_procurement`).
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/RamPoMain/DICT_Procurement_System.git
-cd DICT_Procurement_System
+git clone https://github.com/RamPoMain/DICT_Procurement_System_1.1.git
+cd DICT_Procurement_System_1.1
+
+or
+
+git clone https://github.com/eDTR10/eps
+cd eps
 ```
 
-2. Install dependencies:
+2. Install the frontend and server dependencies from the repository root:
 ```bash
 npm install
+npm --prefix server install
 ```
 
 3. Configure MySQL and the server:
-Copy `server/env.example.txt` to `server/.env`, set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` for an existing MySQL database, and set a private `SESSION_SECRET`, `ADMIN_PASSWORD`, and `SEED_PASSWORD`. On initial MySQL setup, `ADMIN_PASSWORD` bootstraps the admin account and `SEED_PASSWORD` bootstraps migrated non-admin accounts once; affected accounts are required to change their password at sign-in. These values do not reset accounts on every server restart. Keep `.env` private and never commit it. The server creates the required tables when it starts; create the database itself beforehand. Set the MySQL server's `max_allowed_packet` to at least 64 MB to support the existing 50 MB file-upload limit.
+   - Copy `server/env.example.txt` to `server/.env`.
+   - Set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` to match your MySQL setup. With the default local XAMPP configuration, use `localhost`, port `3306`, user `root`, and an empty password; if you configured a MySQL password, put it in `MYSQL_PASSWORD`. Create the database itself before starting the server; the server creates its tables automatically.
+   - Set private values for `SESSION_SECRET`, `ADMIN_PASSWORD`, and `SEED_PASSWORD`. Passwords must be at least 8 characters. On the first MySQL startup, `ADMIN_PASSWORD` initializes the admin account and `SEED_PASSWORD` initializes the other seeded accounts. These settings are one-time bootstraps; changing them later does not reset existing account passwords.
+   - Keep `server/.env` private and never commit it. Set MySQL's `max_allowed_packet` to at least 64 MB to support the 50 MB file-upload limit.
 
 ### Running Locally
 
-Start the API server (MySQL must be reachable):
+Run both processes from the repository root in **separate terminals**. MySQL must be running and the database configured before starting the API.
+
+**Terminal 1 — API server:**
 ```bash
 npm run server
 ```
 
-In another terminal, start the web app:
+**Terminal 2 — frontend:**
 ```bash
 npm run dev
 ```
 
-Open your browser and navigate to:
+Open the URL printed by Vite (by default):
 ```text
 http://localhost:3000/
 ```
@@ -140,11 +151,6 @@ npm run build
 To preview the production build locally:
 ```bash
 npm run preview
-```
-
-To run both server and project
-```bash
-npm --prefix server install nodemailer
 ```
 
 ---
@@ -209,5 +215,3 @@ dict-procurement-react/
 ├── package.json
 └── vite.config.js
 ```
-=======
->>>>>>> d703a5171ffcb4016025f1cc3ee6f29e604d0af1
